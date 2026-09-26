@@ -1,75 +1,37 @@
-require('dotenv').config()
-const { Sequelize, Model, DataTypes } = require('sequelize')
 const express = require('express')
 const app = express()
 
+const { PORT } = require('./util/config')
+const { connectToDatabase } = require('./util/db')
+const { syncModels } = require('./models')
+const { errorHandler } = require('./util/middleware')
+
+const blogsRouter = require('./controllers/blogs')
+const usersRouter = require('./controllers/users')
+const loginRouter = require('./controllers/login')
+const authorsRouter = require('./controllers/authors')
+const resetRouter = require('./controllers/reset')
+
 app.use(express.json())
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false
-    }
-  }
+app.get('/', (req, res) => {
+  res.status(200).end()
 })
 
-class Blog extends Model {}
-Blog.init({
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  author: {
-    type: DataTypes.TEXT
-  },
-  url: {
-    type: DataTypes.TEXT,
-    allowNull: false
-  },
-  title: {
-    type: DataTypes.TEXT,
-    allowNull: false
-  },
-  likes: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
-  }
-}, {
-  sequelize,
-  underscored: true,
-  timestamps: false,
-  modelName: 'blog'
-})
+app.use('/api/blogs', blogsRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/login', loginRouter)
+app.use('/api/authors', authorsRouter)
+app.use('/api/reset', resetRouter)
 
-Blog.sync()
+app.use(errorHandler)
 
-app.get('/api/blogs', async (req, res) => {
-  const blogs = await Blog.findAll()
-  res.json(blogs)
-})
+const start = async () => {
+  await connectToDatabase()
+  await syncModels()
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+  })
+}
 
-app.post('/api/blogs', async (req, res) => {
-  try {
-    const blog = await Blog.create(req.body)
-    return res.json(blog)
-  } catch (error) {
-    return res.status(400).json({ error })
-  }
-})
-
-app.delete('/api/blogs/:id', async (req, res) => {
-  const blog = await Blog.findByPk(req.params.id)
-  if (blog) {
-    await blog.destroy()
-    res.status(204).end()
-  } else {
-    res.status(404).end()
-  }
-})
-
-const PORT = process.env.PORT || 3001
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+start()
